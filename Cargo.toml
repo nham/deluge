@@ -1,0 +1,8 @@
+[package]
+name = "deluge"
+version = "0.0.1"
+authors = ["Nick Hamann <nick@wabbo.org>"]
+
+[dependencies]
+bencode = "~0.1"
+getopts = "~0.2"
