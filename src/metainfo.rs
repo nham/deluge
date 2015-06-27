@@ -96,16 +96,20 @@ impl FromBencode for MetaInfo {
         match *b {
             Bencode::Dict(ref m) => {
                 let announce_key = &bencode::util::ByteString::from_str("announce");
-                let announce = try!(get_field(m, announce_key));
                 let created_by_key = &bencode::util::ByteString::from_str("created by");
-                let created_by = try!(get_field(m, created_by_key));
                 let creation_date_key = &bencode::util::ByteString::from_str("creation date");
-                let creation_date = try!(get_field(m, creation_date_key));
                 let encoding_key = &bencode::util::ByteString::from_str("encoding");
+
+                let announce = try!(get_field(m, announce_key));
+                let created_by = try!(get_field(m, created_by_key));
+                let creation_date = try!(get_field(m, creation_date_key));
                 let encoding = try!(get_field(m, encoding_key));
-                println!("announce = {:?}, creation_date = {:?},
-                          created by = {:?}, encoding = {:?}", announce, creation_date,
-                                                               created_by, encoding);
+
+                println!("announce = {:?},\n\
+                          creation_date = {:?},\n\
+                          created by = {:?},\n\
+                          encoding = {:?}",
+                          announce, creation_date, created_by, encoding);
                 unimplemented!()
             },
             _ => Err(format!("Bencoded string is not a dictionary.")),
@@ -137,7 +141,7 @@ pub fn parse_torrent_file(torrent_file: Option<&str>) -> Result<MetaInfo, ParseE
     let mut path = PathBuf::from(TORRENT_FILE_DIR);
     path.push(fname);
 
-    println!("parse_torrent_file, path = {:?}", path);
+    println!("parse_torrent_file, path = {:?}\n", path);
 
     let mut f = try!(File::open(path));
     let mut buf = Vec::new();
