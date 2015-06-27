@@ -1,4 +1,5 @@
 use bencode::{self, FromBencode, Bencode};
+use sha1;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::fs::File;
@@ -22,6 +23,12 @@ pub struct MetaInfo {
 
     // encoding used for `pieces` portion of info dictionary
     pub encoding: Option<String>,
+}
+
+impl MetaInfo {
+    pub fn info_hash(&self) -> [u8; 20] {
+        unimplemented!()
+    }
 }
 
 impl fmt::Debug for MetaInfo {
