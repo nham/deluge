@@ -83,9 +83,26 @@ fn get_field(map: &BTreeMap<bencode::util::ByteString, Bencode>,
             }
         },
         Some(&Bencode::Number(x)) => Ok(MetaInfoFieldType::Number(x)),
-        Some(_) => Err(format!("{:?}'s value in the dictionary is not a string",
-                               String::from_utf8(key.clone().unwrap() ))),
-        None => Err(format!("{:?} not found in the dictionary", key)),
+        Some(_) => Err(format!("{:?} is in the dict, but not a string or number",
+                               String::from_utf8(key.clone().unwrap()))),
+        None => Err(format!("{:?} not found in the dict",
+                               String::from_utf8(key.clone().unwrap()))),
+
+    }
+}
+
+fn maybe_get_field(map: &BTreeMap<bencode::util::ByteString, Bencode>,
+             key: &bencode::util::ByteString)
+        -> Result<Option<MetaInfoFieldType>, DecodeError> {
+    match map.get(key) {
+        Some(&Bencode::ByteString(ref s)) => {
+            match String::from_utf8(s.clone()) {
+                Ok(s) => Ok(Some(MetaInfoFieldType::ByteString(s))),
+                Err(e) => Err(format!("Error: {}", e)),
+            }
+        },
+        Some(&Bencode::Number(x)) => Ok(Some(MetaInfoFieldType::Number(x))),
+        _ => Ok(None),
     }
 }
 
@@ -101,9 +118,9 @@ impl FromBencode for MetaInfo {
                 let encoding_key = &bencode::util::ByteString::from_str("encoding");
 
                 let announce = try!(get_field(m, announce_key));
-                let created_by = try!(get_field(m, created_by_key));
-                let creation_date = try!(get_field(m, creation_date_key));
-                let encoding = try!(get_field(m, encoding_key));
+                let created_by = try!(maybe_get_field(m, created_by_key));
+                let creation_date = try!(maybe_get_field(m, creation_date_key));
+                let encoding = try!(maybe_get_field(m, encoding_key));
 
                 println!("announce = {:?},\n\
                           creation_date = {:?},\n\
