@@ -6,3 +6,4 @@ authors = ["Nick Hamann <nick@wabbo.org>"]
 [dependencies]
 bencode = "~0.1"
 getopts = "~0.2"
+hyper = "~0.6"

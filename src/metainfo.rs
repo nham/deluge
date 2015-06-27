@@ -9,19 +9,19 @@ static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
 static TORRENT_FILE_DIR: &'static str = "data";
 
 pub struct MetaInfo {
-    info: Info,
+    pub info: Info,
 
     // announce URL of tracker
-    announce: String,
+    pub announce: String,
 
     // in Unix epoch format
-    creation_date: Option<String>,
+    pub creation_date: Option<i64>,
 
     // name and version of program that created the torrent file
-    created_by: Option<String>,
+    pub created_by: Option<String>,
 
     // encoding used for `pieces` portion of info dictionary
-    encoding: Option<String>,
+    pub encoding: Option<String>,
 }
 
 impl fmt::Debug for MetaInfo {
@@ -32,26 +32,30 @@ impl fmt::Debug for MetaInfo {
 }
 
 // "a dictionary that describes the file(s) of the torrent"
-struct Info {
-    piece_length: u32,
-    pieces: Vec<u8>,
-    private: Option<bool>,
-    mode_info: ModeInfo,
+pub struct Info {
+    pub piece_length: u32,
+    pub pieces: Vec<u8>,
+
+    // name of file name in single file mode, or name of directory in
+    // multi-file mode
+    pub name: String,
+
+    pub mode_info: FileInfo,
 }
 
-enum ModeInfo {
+// TODO: probably delete this and use Bencode type instead and generalize
+// get_field and maybe_get_field
+pub enum FileInfo {
     Single(SingleFileInfo),
     Multiple(MultipleFileInfo),
 }
 
 struct SingleFileInfo {
-    name: String,
-    length: u32, // length of file in bytes
-    md5sum: Option<[char; 32]>,
+    pub length: u32, // length of file in bytes
+    pub md5sum: Option<[char; 32]>,
 }
 
 struct MultipleFileInfo {
-    name: String,
     files: Vec<MultipleFileIndividualFileInfo>,
 }
 
@@ -69,6 +73,28 @@ pub type DecodeError = String;
 enum MetaInfoFieldType {
     ByteString(String),
     Number(i64),
+}
+
+impl MetaInfoFieldType {
+    // panics if its not a ByteString
+    pub fn as_string(self) -> String {
+        use self::MetaInfoFieldType::*;
+
+        match self {
+            ByteString(s) => s,
+            _ => panic!("not a ByteString"),
+        }
+    }
+
+    // panics if its not a Number
+    pub fn as_i64(self) -> i64 {
+        use self::MetaInfoFieldType::*;
+
+        match self {
+            Number(x) => x,
+            _ => panic!("not a Number"),
+        }
+    }
 }
 
 // extract a Bencoded ByteString field from a BTreeMap (by key)
@@ -127,7 +153,22 @@ impl FromBencode for MetaInfo {
                           created by = {:?},\n\
                           encoding = {:?}",
                           announce, creation_date, created_by, encoding);
-                unimplemented!()
+
+                // TODO: this Info is bogus
+                let info = Info {
+                    piece_length: 0,
+                    pieces: Vec::new(),
+                    name: String::new(),
+                    mode_info: FileInfo::Single(SingleFileInfo { length: 0, md5sum: None}),
+                };
+
+                Ok(MetaInfo {
+                    info: info,
+                    announce: announce.as_string(),
+                    creation_date: creation_date.map(|cd| cd.as_i64()),
+                    created_by: created_by.map(|cb| cb.as_string()),
+                    encoding: encoding.map(|enc| enc.as_string()),
+                })
             },
             _ => Err(format!("Bencoded string is not a dictionary.")),
         }

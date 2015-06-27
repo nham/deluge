@@ -1,10 +1,12 @@
 extern crate bencode;
 extern crate getopts;
+extern crate hyper;
 
 use getopts::Options;
 use std::env;
 
 mod metainfo;
+mod tracker;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
@@ -39,7 +41,12 @@ fn main() {
     let metainfo = metainfo::parse_torrent_file(torrent_file.as_ref()
                                                             .map(|s| &s[..]));
 
-    println!("metainfo = {:?}", metainfo);
-
-    println!("Hello, universe! torrent_file = {:?}", torrent_file);
+    match metainfo {
+        Ok(metainfo) => {
+            println!("torrent_file = {:?}", torrent_file);
+            println!("metainfo = {:?}", metainfo);
+            tracker::get_tracker(&metainfo);
+        },
+        Err(e) => println!("ERROR: {:?}", e),
+    }
 }
