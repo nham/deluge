@@ -84,10 +84,13 @@ pub fn get_tracker(metainfo: &MetaInfo) {
     let req = TrackerRequest::new(String::from("1234567890abcdefghij"), 4567, 0, 0,
                                   metainfo.piece_length() as u64, info_hash);
 
-    println!("TrackerRequest: {:?}", req.get_query_string());
+    let query_string = req.get_query_string();
+    println!("TrackerRequest: {:?}", query_string);
+
+    let url = format!("{}?{}", metainfo.announce, query_string);
 
     // Creating an outgoing request.
-    let send = client.get(&metainfo.announce)
+    let send = client.get(&url)
                      .header(Connection::close())
                      .send();
     let mut res = match send {
@@ -97,7 +100,10 @@ pub fn get_tracker(metainfo: &MetaInfo) {
 
     // Read the Response.
     let mut body = String::new();
-    res.read_to_string(&mut body).unwrap();
+    match res.read_to_string(&mut body) {
+        Ok(_) => {},
+        Err(e) => return panic!("Error reading to string: {:?}", e),
+    }
 
     println!("Response: {}", body);
 }

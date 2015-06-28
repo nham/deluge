@@ -5,7 +5,7 @@ use std::fs::File;
 use std::fmt;
 use std::io::{self, Read};
 
-static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
+static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
 static TORRENT_FILE_DIR: &'static str = "data";
 
 pub struct MetaInfo {
