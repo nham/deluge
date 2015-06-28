@@ -9,6 +9,7 @@ use std::env;
 
 mod metainfo;
 mod tracker;
+mod util;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);

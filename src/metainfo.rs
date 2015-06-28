@@ -1,3 +1,5 @@
+use util;
+
 use bencode::{self, FromBencode, Bencode};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -102,8 +104,6 @@ pub struct MultiFileInfo {
     files: Vec<MultipleFileIndividualFileInfo>,
 }
 
-// TODO: probably delete this and use Bencode type instead and generalize
-// get_field and maybe_get_field
 pub enum FileInfo {
     Single(SingleFileInfo),
     Multiple(MultiFileInfo),
@@ -119,69 +119,6 @@ struct MultipleFileIndividualFileInfo {
 
 pub type DecodeError = String;
 
-#[derive(Debug)]
-enum MetaInfoFieldType {
-    ByteString(String),
-    Number(i64),
-}
-
-impl MetaInfoFieldType {
-    // panics if its not a ByteString
-    pub fn as_string(self) -> String {
-        use self::MetaInfoFieldType::*;
-
-        match self {
-            ByteString(s) => s,
-            _ => panic!("not a ByteString"),
-        }
-    }
-
-    // panics if its not a Number
-    pub fn as_i64(self) -> i64 {
-        use self::MetaInfoFieldType::*;
-
-        match self {
-            Number(x) => x,
-            _ => panic!("not a Number"),
-        }
-    }
-}
-
-// extract a Bencoded ByteString field from a BTreeMap (by key)
-fn get_field(map: &BTreeMap<bencode::util::ByteString, Bencode>,
-             key: &bencode::util::ByteString)
-        -> Result<MetaInfoFieldType, DecodeError> {
-    match map.get(key) {
-        Some(&Bencode::ByteString(ref s)) => {
-            match String::from_utf8(s.clone()) {
-                Ok(s) => Ok(MetaInfoFieldType::ByteString(s)),
-                Err(e) => Err(format!("Error: {}", e)),
-            }
-        },
-        Some(&Bencode::Number(x)) => Ok(MetaInfoFieldType::Number(x)),
-        Some(_) => Err(format!("{:?} is in the dict, but not a string or number",
-                               String::from_utf8(key.clone().unwrap()))),
-        None => Err(format!("{:?} not found in the dict",
-                               String::from_utf8(key.clone().unwrap()))),
-
-    }
-}
-
-fn maybe_get_field(map: &BTreeMap<bencode::util::ByteString, Bencode>,
-             key: &bencode::util::ByteString)
-        -> Result<Option<MetaInfoFieldType>, DecodeError> {
-    match map.get(key) {
-        Some(&Bencode::ByteString(ref s)) => {
-            match String::from_utf8(s.clone()) {
-                Ok(s) => Ok(Some(MetaInfoFieldType::ByteString(s))),
-                Err(e) => Err(format!("Error: {}", e)),
-            }
-        },
-        Some(&Bencode::Number(x)) => Ok(Some(MetaInfoFieldType::Number(x))),
-        _ => Ok(None),
-    }
-}
-
 
 impl FromBencode for MetaInfo {
     type Err = DecodeError;
@@ -193,10 +130,10 @@ impl FromBencode for MetaInfo {
                 let creation_date_key = &bencode::util::ByteString::from_str("creation date");
                 let encoding_key = &bencode::util::ByteString::from_str("encoding");
 
-                let announce = try!(get_field(m, announce_key));
-                let created_by = try!(maybe_get_field(m, created_by_key));
-                let creation_date = try!(maybe_get_field(m, creation_date_key));
-                let encoding = try!(maybe_get_field(m, encoding_key));
+                let announce = util::get_field(m, announce_key);
+                let created_by = util::maybe_get_field(m, created_by_key);
+                let creation_date = util::maybe_get_field(m, creation_date_key);
+                let encoding = util::maybe_get_field(m, encoding_key);
 
                 println!("announce = {:?},\n\
                           creation_date = {:?},\n\
@@ -213,12 +150,23 @@ impl FromBencode for MetaInfo {
                     md5sum: None,
                 };
 
+                fn unwrap_bencode_bytestring(b: Bencode, field_name: &str) -> String {
+                    let bytes = util::bencode_unwrap_bytestring(b);
+                    match String::from_utf8(bytes) {
+                        Ok(s) => s,
+                        Err(e) => return panic!("Error converting {} to string: {:?}",
+                                                field_name, e),
+                    }
+                }
+
                 Ok(MetaInfo {
                     info: Box::new(info) as Box<InfoDictionary>,
-                    announce: announce.as_string(),
-                    creation_date: creation_date.map(|cd| cd.as_i64()),
-                    created_by: created_by.map(|cb| cb.as_string()),
-                    encoding: encoding.map(|enc| enc.as_string()),
+                    announce: unwrap_bencode_bytestring(announce, "announce"),
+                    creation_date: creation_date.map(|cd| util::bencode_unwrap_number(cd)),
+                    created_by: created_by.map(|cb| unwrap_bencode_bytestring(cb,
+                                                                              "created_by")),
+                    encoding: encoding.map(|enc| unwrap_bencode_bytestring(enc,
+                                                                           "encoding")),
                 })
             },
             _ => Err(format!("Bencoded string is not a dictionary.")),
