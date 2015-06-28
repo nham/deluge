@@ -7,4 +7,4 @@ authors = ["Nick Hamann <nick@wabbo.org>"]
 bencode = "~0.1"
 getopts = "~0.2"
 hyper = "~0.6"
-sha1 = "~0.1"
+openssl ="~0.6"

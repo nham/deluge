@@ -1,5 +1,4 @@
 use bencode::{self, FromBencode, Bencode};
-use sha1;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::fs::File;
@@ -10,7 +9,7 @@ static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
 static TORRENT_FILE_DIR: &'static str = "data";
 
 pub struct MetaInfo {
-    pub info: Info,
+    pub info: Box<InfoDictionary>,
 
     // announce URL of tracker
     pub announce: String,
@@ -26,8 +25,12 @@ pub struct MetaInfo {
 }
 
 impl MetaInfo {
-    pub fn info_hash(&self) -> [u8; 20] {
-        unimplemented!()
+    pub fn piece_length(&self) -> u32 {
+        self.info.piece_length()
+    }
+
+    pub fn info_hash_bytes(&self) -> Vec<u8> {
+        self.info.info_hash_bytes()
     }
 }
 
@@ -38,32 +41,72 @@ impl fmt::Debug for MetaInfo {
     }
 }
 
+pub trait InfoDictionary {
+    fn info_hash_bytes(&self) -> Vec<u8>;
+    fn piece_length(&self) -> u32;
+}
+
 // "a dictionary that describes the file(s) of the torrent"
-pub struct Info {
+pub struct SingleFileInfo {
     pub piece_length: u32,
     pub pieces: Vec<u8>,
 
-    // name of file name in single file mode, or name of directory in
-    // multi-file mode
+    // name of file name
     pub name: String,
 
-    pub mode_info: FileInfo,
+    // length of file in bytes
+    pub length: u32,
+
+    pub md5sum: Option<[char; 32]>,
+}
+
+fn bencode_dict_insert(dict: &mut Bencode,
+                       key: bencode::util::ByteString,
+                       value: Bencode) -> Option<Bencode> {
+    match *dict {
+        Bencode::Dict(ref mut map) => map.insert(key, value),
+        _ => return panic!("bencode_dict_insert: `dict` is not a `Bencode::Dict`"),
+    }
+}
+
+impl InfoDictionary for SingleFileInfo {
+    fn info_hash_bytes(&self) -> Vec<u8> {
+        let mut dict = Bencode::Dict(BTreeMap::new());
+        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("piece length"),
+                                       Bencode::Number(self.piece_length as i64));
+        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("pieces"),
+                                       Bencode::ByteString(self.pieces.clone()));
+        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("name"),
+                                       Bencode::ByteString(self.name.clone().into_bytes() ));
+        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("length"),
+                                       Bencode::Number(self.length as i64));
+        if self.md5sum.is_some() {
+            return panic!("md5sum isn't implemented as part of info_hash_bytes yet");
+        }
+        match dict.to_bytes() {
+            Ok(bytes) => bytes,
+            Err(e) => panic!("Error converting dict to bytes: {:?}", e),
+        }
+    }
+
+    fn piece_length(&self) -> u32 { self.piece_length }
+}
+
+pub struct MultiFileInfo {
+    pub piece_length: u32,
+    pub pieces: Vec<u8>,
+
+    // name of directory that contains the files
+    pub name: String,
+
+    files: Vec<MultipleFileIndividualFileInfo>,
 }
 
 // TODO: probably delete this and use Bencode type instead and generalize
 // get_field and maybe_get_field
 pub enum FileInfo {
     Single(SingleFileInfo),
-    Multiple(MultipleFileInfo),
-}
-
-struct SingleFileInfo {
-    pub length: u32, // length of file in bytes
-    pub md5sum: Option<[char; 32]>,
-}
-
-struct MultipleFileInfo {
-    files: Vec<MultipleFileIndividualFileInfo>,
+    Multiple(MultiFileInfo),
 }
 
 // this name is less than ideal...
@@ -162,15 +205,16 @@ impl FromBencode for MetaInfo {
                           announce, creation_date, created_by, encoding);
 
                 // TODO: this Info is bogus
-                let info = Info {
+                let info = SingleFileInfo {
                     piece_length: 0,
                     pieces: Vec::new(),
                     name: String::new(),
-                    mode_info: FileInfo::Single(SingleFileInfo { length: 0, md5sum: None}),
+                    length: 0,
+                    md5sum: None,
                 };
 
                 Ok(MetaInfo {
-                    info: info,
+                    info: Box::new(info) as Box<InfoDictionary>,
                     announce: announce.as_string(),
                     creation_date: creation_date.map(|cd| cd.as_i64()),
                     created_by: created_by.map(|cb| cb.as_string()),

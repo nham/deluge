@@ -2,9 +2,10 @@ use metainfo::MetaInfo;
 
 use hyper::Client;
 use hyper::header::Connection;
+use openssl::crypto::hash as openssl_hash;
 use std::io::Read;
 
-type Sha1Hash = [u8; 20];
+type Sha1Hash = Vec<u8>;
 
 enum EventType {
     Started,
@@ -43,8 +44,10 @@ struct TrackerRequest {
 }
 
 impl TrackerRequest {
-    fn new(peer_id: String, port: u16, ul: u64, dl: u64, left: u64) {
+    fn new(peer_id: String, port: u16, ul: u64, dl: u64,
+           left: u64, info_hash: Sha1Hash) -> TrackerRequest {
         TrackerRequest {
+            info_hash: info_hash,
             peer_id: peer_id,
             port: port,
             uploaded: ul,
@@ -71,9 +74,14 @@ impl TrackerRequest {
 
 pub fn get_tracker(metainfo: &MetaInfo) {
     // Create a client.
-    let mut client = Client::new();
+    let client = Client::new();
 
-    let req = TrackerRequest::new("1234567890abcdefghij", 4567, 0, 0, _);
+    let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
+                                       &metainfo.info_hash_bytes()[..]);
+    let req = TrackerRequest::new(String::from("1234567890abcdefghij"), 4567, 0, 0,
+                                  metainfo.piece_length() as u64, info_hash);
+
+    println!("TrackerRequest: {:?}", req.get_query_string());
 
     // Creating an outgoing request.
     let send = client.get(&metainfo.announce)
