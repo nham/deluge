@@ -18,13 +18,16 @@ pub fn bencode_unwrap_bytestring(b: Bencode) -> Vec<u8> {
 
 // panics if key isn't found
 pub fn get_field(map: &BTreeMap<bencode::util::ByteString, Bencode>,
-             key: &bencode::util::ByteString)
+             key: &str)
         -> Bencode {
-    map.get(key).unwrap().clone()
+    map.get(&bencode::util::ByteString::from_str(key))
+       .unwrap()
+       .clone()
 }
 
 pub fn maybe_get_field(map: &BTreeMap<bencode::util::ByteString, Bencode>,
-             key: &bencode::util::ByteString)
+             key: &str)
         -> Option<Bencode>  {
-    map.get(key).map(|b| b.clone())
+    map.get(&bencode::util::ByteString::from_str(key))
+       .map(|b| b.clone())
 }

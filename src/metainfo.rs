@@ -125,15 +125,10 @@ impl FromBencode for MetaInfo {
     fn from_bencode(b: &Bencode) -> Result<MetaInfo, Self::Err> {
         match *b {
             Bencode::Dict(ref m) => {
-                let announce_key = &bencode::util::ByteString::from_str("announce");
-                let created_by_key = &bencode::util::ByteString::from_str("created by");
-                let creation_date_key = &bencode::util::ByteString::from_str("creation date");
-                let encoding_key = &bencode::util::ByteString::from_str("encoding");
-
-                let announce = util::get_field(m, announce_key);
-                let created_by = util::maybe_get_field(m, created_by_key);
-                let creation_date = util::maybe_get_field(m, creation_date_key);
-                let encoding = util::maybe_get_field(m, encoding_key);
+                let announce = util::get_field(m, "announce");
+                let created_by = util::maybe_get_field(m, "created by");
+                let creation_date = util::maybe_get_field(m, "creation date");
+                let encoding = util::maybe_get_field(m, "encoding");
 
                 println!("announce = {:?},\n\
                           creation_date = {:?},\n\
