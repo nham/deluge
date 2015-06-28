@@ -2,6 +2,7 @@ extern crate bencode;
 extern crate getopts;
 extern crate hyper;
 extern crate openssl;
+extern crate url;
 
 use getopts::Options;
 use std::env;

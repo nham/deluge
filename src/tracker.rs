@@ -4,6 +4,7 @@ use hyper::Client;
 use hyper::header::Connection;
 use openssl::crypto::hash as openssl_hash;
 use std::io::Read;
+use url::percent_encoding::{percent_encode, FORM_URLENCODED_ENCODE_SET};
 
 type Sha1Hash = Vec<u8>;
 
@@ -61,7 +62,9 @@ impl TrackerRequest {
 
     fn get_query_string(&self) -> String {
         let mut v = Vec::new();
-        v.push(format!("{}={:?}", "info_hash", self.info_hash));
+        let encoded_info_hash = percent_encode(&self.info_hash,
+                                               FORM_URLENCODED_ENCODE_SET);
+        v.push(format!("{}={}", "info_hash", encoded_info_hash));
         v.push(format!("{}={}", "left", self.left));
         v.push(format!("{}={}", "uploaded", self.uploaded));
         v.push(format!("{}={}", "downloaded", self.downloaded));
