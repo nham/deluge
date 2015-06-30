@@ -7,7 +7,8 @@ use std::fs::File;
 use std::fmt;
 use std::io::{self, Read};
 
-static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
+//static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
+static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
 static TORRENT_FILE_DIR: &'static str = "data";
 
 pub struct MetaInfo {
@@ -146,7 +147,7 @@ impl FromBencode for MetaInfo {
                 };
 
                 fn unwrap_bencode_bytestring(b: Bencode, field_name: &str) -> String {
-                    let bytes = util::bencode_unwrap_bytestring(b);
+                    let bytes = util::bencode_string_unwrap_bytes(b);
                     match String::from_utf8(bytes) {
                         Ok(s) => s,
                         Err(e) => return panic!("Error converting {} to string: {:?}",

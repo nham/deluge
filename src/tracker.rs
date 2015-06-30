@@ -1,9 +1,12 @@
 use metainfo::MetaInfo;
+use util;
 
+use bencode::{self, FromBencode, Bencode};
 use hyper::Client;
 use hyper::header::Connection;
 use openssl::crypto::hash as openssl_hash;
 use std::io::Read;
+use std::net;
 use url::percent_encoding::{percent_encode, FORM_URLENCODED_ENCODE_SET};
 
 type Sha1Hash = Vec<u8>;
@@ -89,6 +92,8 @@ pub fn get_tracker(metainfo: &MetaInfo) {
 
     let url = format!("{}?{}", metainfo.announce, query_string);
 
+    println!("get_tracker, url = {:?}", url);
+
     // Creating an outgoing request.
     let send = client.get(&url)
                      .header(Connection::close())
@@ -106,4 +111,104 @@ pub fn get_tracker(metainfo: &MetaInfo) {
     }
 
     println!("Response: {}", body);
+
+    let bencode = match bencode::from_buffer(body.as_bytes()) {
+        Ok(b) => b,
+        Err(e) => return panic!("Error creating Bencoded value from response string: {:?}", e),
+    };
+
+    println!("About to make TrackerResponse");
+    let resp = <TrackerResponse>::from_bencode(&bencode);
+
+
+}
+
+
+
+struct TrackerResponse {
+    pub failure_reason: Option<String>,
+
+    // seconds a client should wait before sending requests to the tracker
+    pub interval: Option<i64>,
+
+    // a string to be sent by client on following announcements
+    pub tracker_id: Option<String>,
+
+    // number of peers with the entire file (seeders)
+    pub complete: Option<i64>,
+
+    // number of non-complete peers (leechers?)
+    pub incomplete: Option<i64>,
+
+    // This is perhaps the "dictionary model" in the unofficial spec?
+    pub peers: Option<Vec<ResponsePeerInfo>>,
+
+}
+
+struct ResponsePeerInfo {
+    peer_id: String,
+    addr: net::SocketAddr,
+}
+
+impl FromBencode for ResponsePeerInfo {
+    type Err = String;
+    fn from_bencode(b: &Bencode) -> Result<ResponsePeerInfo, Self::Err> {
+        match *b {
+            Bencode::Dict(ref map) => {
+                let peer_id = util::get_field(map, "peer id");
+                let ip = util::get_field(map, "ip");
+                let port = util::bencode_unwrap_number(
+                               util::get_field(map, "port")
+                           ) as u16;
+                println!("ip: {:?}", ip);
+                //let ip = net::IpAddr::V4(net::Ipv4Addr::new(a, b, c, d));
+                unimplemented!()
+                /*
+                Ok(ResponsePeerInfo {
+                    peer_id: util::bencode_string_unwrap_string(peer_id),
+                    addr: net::SocketAddr::new(ip, port),
+                })
+                */
+            },
+            _ => Err(String::from("Cannot convert to ResponsePeerInfo, not a dictionary")),
+        }
+    }
+}
+
+impl FromBencode for TrackerResponse {
+    type Err = String;
+    fn from_bencode(b: &Bencode) -> Result<TrackerResponse, Self::Err> {
+        match *b {
+            Bencode::Dict(ref map) => {
+                let failure_reason = util::maybe_get_field(map, "failure reason");
+                let interval = util::maybe_get_field(map, "interval");
+                let tracker_id = util::maybe_get_field(map, "tracker id");
+                let complete = util::maybe_get_field(map, "complete");
+                let incomplete = util::maybe_get_field(map, "incomplete");
+                let peers = util::maybe_get_field(map, "peers");
+
+                println!("failure reason = {:?},\n\
+                          interval = {:?},\n\
+                          tracker id = {:?},\n\
+                          complete = {:?},\n\
+                          incomplete = {:?},\n\
+                          peers = {:?}",
+                          failure_reason,
+                          //failure_reason.map(|b| String::from_utf8(b.as_slice())),
+                          interval, tracker_id,
+                          complete, incomplete, peers);
+
+                let resp = TrackerResponse {
+                    failure_reason: failure_reason.map(|b| util::bencode_string_unwrap_string(b)),
+                    interval: interval.map(|b| util::bencode_unwrap_number(b)),
+                    tracker_id: tracker_id.map(|b| util::bencode_string_unwrap_string(b)),
+                    complete: complete.map(|b| util::bencode_unwrap_number(b)),
+                    incomplete: incomplete.map(|b| util::bencode_unwrap_number(b)),
+                    peers: unimplemented!(),
+                };
+                Ok(resp)
+            },
+            _ => Err(String::from("Bencoded value is not a dictionary.")),
+        }
+    }
 }
