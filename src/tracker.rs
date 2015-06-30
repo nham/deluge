@@ -2,10 +2,10 @@ use metainfo::MetaInfo;
 use util;
 
 use bencode::{self, FromBencode, Bencode};
-use hyper::Client;
+use hyper::{self, Client};
 use hyper::header::Connection;
 use openssl::crypto::hash as openssl_hash;
-use std::io::Read;
+use std::io::{self, Read};
 use std::net;
 use url::percent_encoding::{percent_encode, FORM_URLENCODED_ENCODE_SET};
 
@@ -77,6 +77,9 @@ impl TrackerRequest {
 
     fn get_query_string(&self) -> String {
         let mut v = Vec::new();
+        // FORM_URLENCODED_ENCODE_SET business is copied from Ken Pratt and
+        // Pietro Menna's rusty_torrent. I don't understand why specifically
+        // this one is used.
         let encoded_info_hash = percent_encode(&self.info_hash,
                                                FORM_URLENCODED_ENCODE_SET);
         v.push(format!("{}={}", "info_hash", encoded_info_hash));
@@ -93,10 +96,15 @@ impl TrackerRequest {
     }
 }
 
-pub fn get_tracker(metainfo: &MetaInfo) {
-    // Create a client.
-    let client = Client::new();
+// error for the tracker GET request that sends event `started`
+pub enum TrackerError {
+    DecodeError(String),
+    IoError(io::Error),
+    HyperError(hyper::Error),
+}
 
+// sends
+pub fn get_tracker(metainfo: &MetaInfo) -> Result<(), TrackerError> {
     let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
                                        &metainfo.info_hash_bytes()[..]);
     println!("in get_tracker, info_hash = {:?}", info_hash);
@@ -111,34 +119,33 @@ pub fn get_tracker(metainfo: &MetaInfo) {
 
     println!("get_tracker, url = {:?}", url);
 
+    // Create a client.
+    let client = Client::new();
+
     // Creating an outgoing request.
     let send = client.get(&url)
                      .header(Connection::close())
                      .send();
     let mut res = match send {
         Ok(res) => res,
-        Err(e) => return panic!("Error: {:?}", e),
+        Err(e) => return Err(TrackerError::HyperError(e)),
     };
 
-    // Read the Response.
+    // read the response.
     let mut body = Vec::new();
     match res.read_to_end(&mut body) {
         Ok(_) => {},
-        Err(e) => return panic!("Error reading to buffer: {:?}", e),
+        Err(e) => return Err(TrackerError::IoError(e)),
     }
 
-    println!("Response: {:?}", body);
-
-    let bencode = match bencode::from_buffer(&body) {
-        Ok(b) => b,
-        Err(e) => return panic!("Error creating Bencoded value from response string: {:?}", e),
+    let resp = match TrackerResponse::from_bytes(&body) {
+        Ok(resp) => resp,
+        Err(e) => return Err(TrackerError::DecodeError(e)),
     };
-
-    println!("About to make TrackerResponse");
-    let resp = <TrackerResponse>::from_bencode(&bencode);
 
     println!("TrackerResponse = {:?}", resp);
 
+    Ok(())
 }
 
 
@@ -165,6 +172,15 @@ struct TrackerResponse {
 }
 
 impl TrackerResponse {
+    fn from_bytes(bytes: &[u8]) -> Result<TrackerResponse, String> {
+        let bencode = match bencode::from_buffer(&bytes) {
+            Ok(b) => b,
+            Err(e) => return Err(format!("Error creating Bencoded value from response string: {:?}", e)),
+        };
+
+        <TrackerResponse>::from_bencode(&bencode)
+    }
+
     fn parse_peers_bytes(buf: &[u8]) -> Vec<net::SocketAddr>{
         assert!(buf.len() % 6 == 0);
         let mut v = Vec::new();
