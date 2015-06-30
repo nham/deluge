@@ -47,6 +47,8 @@ fn main() {
         return;
     }
 
+    println!("torrent_file = {:?}", torrent_file);
+
     let torrent_file_name = match torrent_file {
         Some(ref file) => &file[..],
         None => DEFAULT_TORRENT_FILE,
@@ -54,12 +56,14 @@ fn main() {
 
     let metainfo = metainfo::parse_torrent_file(torrent_file_name);
 
-    match metainfo {
-        Ok(metainfo) => {
-            println!("torrent_file = {:?}", torrent_file);
-            println!("metainfo = {:?}", metainfo);
-            tracker::get_tracker(&metainfo);
-        },
-        Err(e) => println!("ERROR: {:?}", e),
+    // try to unwrap metainfo
+    let metainfo = match metainfo {
+        Ok(metainfo) => metainfo,
+        Err(e) => return panic!("Error unwrapping metainfo: {:?}", e),
+    };
+    println!("metainfo = {:?}", metainfo);
+    match tracker::get_tracker(&metainfo) {
+        Ok(()) => {},
+        Err(e) => return panic!("Error calling get_tracker: {:?}", e),
     }
 }

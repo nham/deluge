@@ -97,6 +97,7 @@ impl TrackerRequest {
 }
 
 // error for the tracker GET request that sends event `started`
+#[derive(Debug)]
 pub enum TrackerError {
     DecodeError(String),
     IoError(io::Error),
@@ -209,6 +210,7 @@ impl ResponsePeerInfo {
     }
 }
 
+/*
 impl FromBencode for ResponsePeerInfo {
     type Err = String;
     fn from_bencode(b: &Bencode) -> Result<ResponsePeerInfo, Self::Err> {
@@ -247,6 +249,7 @@ fn bencode_to_vec_rpi_dict(peers: Option<Bencode>) -> Option<Vec<ResponsePeerInf
 
     peers_vec.map(|v| vec_bencode_to_rpi(v))
 }
+*/
 
 impl FromBencode for TrackerResponse {
     type Err = String;

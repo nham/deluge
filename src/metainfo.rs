@@ -93,6 +93,7 @@ impl InfoDictionary for SingleFileInfo {
     fn num_file_bytes(&self) -> u32 { self.length }
 }
 
+/*
 pub struct MultiFileInfo {
     pub piece_length: u32,
     pub pieces: Vec<u8>,
@@ -114,6 +115,7 @@ struct MultipleFileIndividualFileInfo {
     md5sum: Option<[char; 32]>,
     path: Vec<String>, // maybe should be a std::path::Path
 }
+*/
 
 
 pub type DecodeError = String;
