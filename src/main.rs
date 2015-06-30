@@ -13,6 +13,10 @@ mod metainfo;
 mod tracker;
 mod util;
 
+//static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
+//static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
+static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
+
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
@@ -43,8 +47,12 @@ fn main() {
         return;
     }
 
-    let metainfo = metainfo::parse_torrent_file(torrent_file.as_ref()
-                                                            .map(|s| &s[..]));
+    let torrent_file_name = match torrent_file {
+        Some(ref file) => &file[..],
+        None => DEFAULT_TORRENT_FILE,
+    };
+
+    let metainfo = metainfo::parse_torrent_file(torrent_file_name);
 
     match metainfo {
         Ok(metainfo) => {

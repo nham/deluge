@@ -7,9 +7,6 @@ use std::fs::File;
 use std::fmt;
 use std::io::{self, Read};
 
-//static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
-//static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
-static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
 static TORRENT_FILE_DIR: &'static str = "data";
 
 pub struct MetaInfo {
@@ -206,10 +203,9 @@ impl From<bencode::streaming::Error> for ParseError {
     }
 }
 
-pub fn parse_torrent_file(torrent_file: Option<&str>) -> Result<MetaInfo, ParseError> {
-    let fname = torrent_file.unwrap_or(DEFAULT_TORRENT_FILE);
+pub fn parse_torrent_file(torrent_file: &str) -> Result<MetaInfo, ParseError> {
     let mut path = PathBuf::from(TORRENT_FILE_DIR);
-    path.push(fname);
+    path.push(torrent_file);
 
     println!("parse_torrent_file, path = {:?}\n", path);
 
