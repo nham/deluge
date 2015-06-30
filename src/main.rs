@@ -1,3 +1,5 @@
+#![feature(ip_addr)]
+
 extern crate bencode;
 extern crate getopts;
 extern crate hyper;

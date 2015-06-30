@@ -137,10 +137,13 @@ pub fn get_tracker(metainfo: &MetaInfo) {
     println!("About to make TrackerResponse");
     let resp = <TrackerResponse>::from_bencode(&bencode);
 
+    println!("TrackerResponse = {:?}", resp);
+
 }
 
 
 
+#[derive(Debug)]
 struct TrackerResponse {
     pub failure_reason: Option<String>,
 
@@ -164,10 +167,18 @@ struct TrackerResponse {
 impl TrackerResponse {
     fn parse_peers_bytes(buf: &[u8]) -> Vec<net::SocketAddr>{
         assert!(buf.len() % 6 == 0);
-        unimplemented!()
+        let mut v = Vec::new();
+        for i in 0..(buf.len() / 6) {
+            let ip = net::IpAddr::V4(net::Ipv4Addr::new(buf[i], buf[i+1],
+                                                        buf[i+2], buf[i+3]));
+            let port = ((buf[i+4] as u16) << 8) | (buf[i+5] as u16);
+            v.push(net::SocketAddr::new(ip, port));
+        }
+        v
     }
 }
 
+#[derive(Debug)]
 struct ResponsePeerInfo {
     peer_id: Option<String>,
     addr: net::SocketAddr,
@@ -244,8 +255,13 @@ impl FromBencode for TrackerResponse {
                           interval, tracker_id,
                           complete, incomplete, peers);
 
+                println!("------------------------------");
 
-
+                let vec_rpi = peers.map(|b| {
+                    let v = util::bencode_string_unwrap_bytes(b);
+                    let addrs = TrackerResponse::parse_peers_bytes(&v);
+                    addrs.into_iter().map(|addr| ResponsePeerInfo::from_socketaddr(addr)).collect::<Vec<_>>()
+                });
 
                 let resp = TrackerResponse {
                     failure_reason: failure_reason.map(|b| util::bencode_string_unwrap_string(b)),
@@ -253,7 +269,7 @@ impl FromBencode for TrackerResponse {
                     tracker_id: tracker_id.map(|b| util::bencode_string_unwrap_string(b)),
                     complete: complete.map(|b| util::bencode_unwrap_number(b)),
                     incomplete: incomplete.map(|b| util::bencode_unwrap_number(b)),
-                    peers: bencode_to_vec_rpi_dict(peers),
+                    peers: vec_rpi,
                 };
                 Ok(resp)
             },
