@@ -18,6 +18,18 @@ enum EventType {
     Empty,
 }
 
+impl EventType {
+    fn as_str(&self) -> &str {
+        use self::EventType::*;
+        match *self {
+            Started => "started",
+            Stopped => "stopped",
+            Completed => "completed",
+            Empty => unimplemented!()
+        }
+    }
+}
+
 struct TrackerRequest {
     // sha1 hash of the value of "info key from the Metainfo file". value will be a dict?
     info_hash: Sha1Hash,
@@ -49,7 +61,7 @@ struct TrackerRequest {
 
 impl TrackerRequest {
     fn new(peer_id: String, port: u16, ul: u64, dl: u64,
-           left: u64, info_hash: Sha1Hash) -> TrackerRequest {
+           left: u64, info_hash: Sha1Hash, event: Option<EventType>) -> TrackerRequest {
         TrackerRequest {
             info_hash: info_hash,
             peer_id: peer_id,
@@ -59,7 +71,7 @@ impl TrackerRequest {
             left: left,
             compact: None,
             no_peer_id: None,
-            event: None,
+            event: event,
         }
     }
 
@@ -71,9 +83,12 @@ impl TrackerRequest {
         v.push(format!("{}={}", "left", self.left));
         v.push(format!("{}={}", "uploaded", self.uploaded));
         v.push(format!("{}={}", "downloaded", self.downloaded));
-        //v.push(format!("{}={}", "event", self.event));
         v.push(format!("{}={}", "port", self.port));
         v.push(format!("{}={}", "peer_id", self.peer_id));
+        if self.event.is_some() {
+            v.push(format!("{}={}", "event", self.event.as_ref().unwrap()
+                                                       .as_str()));
+        }
         v.connect("&")
     }
 }
@@ -84,8 +99,10 @@ pub fn get_tracker(metainfo: &MetaInfo) {
 
     let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
                                        &metainfo.info_hash_bytes()[..]);
+    println!("in get_tracker, info_hash = {:?}", info_hash);
     let req = TrackerRequest::new(String::from("1234567890abcdefghij"), 4567, 0, 0,
-                                  metainfo.num_file_bytes() as u64, info_hash);
+                                  metainfo.num_file_bytes() as u64, info_hash,
+                                  Some(EventType::Started));
 
     let query_string = req.get_query_string();
     println!("TrackerRequest: {:?}", query_string);
@@ -104,15 +121,15 @@ pub fn get_tracker(metainfo: &MetaInfo) {
     };
 
     // Read the Response.
-    let mut body = String::new();
-    match res.read_to_string(&mut body) {
+    let mut body = Vec::new();
+    match res.read_to_end(&mut body) {
         Ok(_) => {},
-        Err(e) => return panic!("Error reading to string: {:?}", e),
+        Err(e) => return panic!("Error reading to buffer: {:?}", e),
     }
 
-    println!("Response: {}", body);
+    println!("Response: {:?}", body);
 
-    let bencode = match bencode::from_buffer(body.as_bytes()) {
+    let bencode = match bencode::from_buffer(&body) {
         Ok(b) => b,
         Err(e) => return panic!("Error creating Bencoded value from response string: {:?}", e),
     };
