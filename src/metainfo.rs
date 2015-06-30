@@ -8,7 +8,8 @@ use std::fmt;
 use std::io::{self, Read};
 
 //static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
-static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
+//static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
+static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
 static TORRENT_FILE_DIR: &'static str = "data";
 
 pub struct MetaInfo {
@@ -28,8 +29,8 @@ pub struct MetaInfo {
 }
 
 impl MetaInfo {
-    pub fn piece_length(&self) -> u32 {
-        self.info.piece_length()
+    pub fn num_file_bytes(&self) -> u32 {
+        self.info.num_file_bytes()
     }
 
     pub fn info_hash_bytes(&self) -> Vec<u8> {
@@ -46,7 +47,7 @@ impl fmt::Debug for MetaInfo {
 
 pub trait InfoDictionary {
     fn info_hash_bytes(&self) -> Vec<u8>;
-    fn piece_length(&self) -> u32;
+    fn num_file_bytes(&self) -> u32;
 }
 
 // "a dictionary that describes the file(s) of the torrent"
@@ -92,7 +93,7 @@ impl InfoDictionary for SingleFileInfo {
         }
     }
 
-    fn piece_length(&self) -> u32 { self.piece_length }
+    fn num_file_bytes(&self) -> u32 { self.length }
 }
 
 pub struct MultiFileInfo {
@@ -137,12 +138,28 @@ impl FromBencode for MetaInfo {
                           encoding = {:?}",
                           announce, creation_date, created_by, encoding);
 
-                // TODO: this Info is bogus
+                let info_dict_map = match util::get_field(m, "info") {
+                    Bencode::Dict(map) => map,
+                    _ => return Err(String::from("`info` field is not a dictionary.")),
+                };
+
+                let piece_length = util::get_field(&info_dict_map, "piece length");
+                let pieces = util::get_field(&info_dict_map, "pieces");
+                let name = util::get_field(&info_dict_map, "name");
+                let length = util::get_field(&info_dict_map, "length");
+
+                println!("piece_length = {:?},\n\
+                          pieces = {:?},\n\
+                          name = {:?},\n\
+                          length = {:?}",
+                          piece_length, pieces, name, length);
+
+                // TODO: md5sum
                 let info = SingleFileInfo {
-                    piece_length: 0,
-                    pieces: Vec::new(),
-                    name: String::new(),
-                    length: 0,
+                    piece_length: util::bencode_unwrap_number(piece_length) as u32,
+                    pieces: util::bencode_string_unwrap_bytes(pieces),
+                    name: util::bencode_string_unwrap_string(name),
+                    length: util::bencode_unwrap_number(length) as u32,
                     md5sum: None,
                 };
 

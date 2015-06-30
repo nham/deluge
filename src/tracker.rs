@@ -85,7 +85,7 @@ pub fn get_tracker(metainfo: &MetaInfo) {
     let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
                                        &metainfo.info_hash_bytes()[..]);
     let req = TrackerRequest::new(String::from("1234567890abcdefghij"), 4567, 0, 0,
-                                  metainfo.piece_length() as u64, info_hash);
+                                  metainfo.num_file_bytes() as u64, info_hash);
 
     let query_string = req.get_query_string();
     println!("TrackerRequest: {:?}", query_string);
