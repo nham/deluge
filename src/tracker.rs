@@ -137,7 +137,6 @@ pub fn get_tracker(metainfo: &MetaInfo) {
     println!("About to make TrackerResponse");
     let resp = <TrackerResponse>::from_bencode(&bencode);
 
-
 }
 
 
@@ -162,9 +161,25 @@ struct TrackerResponse {
 
 }
 
+impl TrackerResponse {
+    fn parse_peers_bytes(buf: &[u8]) -> Vec<net::SocketAddr>{
+        assert!(buf.len() % 6 == 0);
+        unimplemented!()
+    }
+}
+
 struct ResponsePeerInfo {
-    peer_id: String,
+    peer_id: Option<String>,
     addr: net::SocketAddr,
+}
+
+impl ResponsePeerInfo {
+    fn from_socketaddr(addr: net::SocketAddr) -> ResponsePeerInfo {
+        ResponsePeerInfo {
+            peer_id: None,
+            addr: addr,
+        }
+    }
 }
 
 impl FromBencode for ResponsePeerInfo {
@@ -192,6 +207,20 @@ impl FromBencode for ResponsePeerInfo {
     }
 }
 
+fn bencode_to_vec_rpi_dict(peers: Option<Bencode>) -> Option<Vec<ResponsePeerInfo>> {
+    fn vec_bencode_to_rpi(v: Vec<Bencode>) -> Vec<ResponsePeerInfo> {
+        v.into_iter()
+         .map(|b| match <ResponsePeerInfo>::from_bencode(&b) {
+                  Ok(rpi) => rpi,
+                  Err(e) => return panic!("Error converting to RPI: {:?}", e),
+              }).collect()
+    }
+    // looking for a list of dictionaries
+    let peers_vec = peers.map(|b| util::bencode_unwrap_list(b));
+
+    peers_vec.map(|v| vec_bencode_to_rpi(v))
+}
+
 impl FromBencode for TrackerResponse {
     type Err = String;
     fn from_bencode(b: &Bencode) -> Result<TrackerResponse, Self::Err> {
@@ -215,13 +244,16 @@ impl FromBencode for TrackerResponse {
                           interval, tracker_id,
                           complete, incomplete, peers);
 
+
+
+
                 let resp = TrackerResponse {
                     failure_reason: failure_reason.map(|b| util::bencode_string_unwrap_string(b)),
                     interval: interval.map(|b| util::bencode_unwrap_number(b)),
                     tracker_id: tracker_id.map(|b| util::bencode_string_unwrap_string(b)),
                     complete: complete.map(|b| util::bencode_unwrap_number(b)),
                     incomplete: incomplete.map(|b| util::bencode_unwrap_number(b)),
-                    peers: unimplemented!(),
+                    peers: bencode_to_vec_rpi_dict(peers),
                 };
                 Ok(resp)
             },

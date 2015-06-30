@@ -8,6 +8,13 @@ pub fn bencode_unwrap_number(b: Bencode) -> i64 {
     }
 }
 
+pub fn bencode_unwrap_list(b: Bencode) -> Vec<Bencode> {
+    match b {
+        Bencode::List(v) => v,
+        _ => panic!("Failed to unwrap, Bencoded value is not a List."),
+    }
+}
+
 pub fn bencode_string_unwrap_bytes(b: Bencode) -> Vec<u8> {
     match b {
         Bencode::ByteString(v) => v,
