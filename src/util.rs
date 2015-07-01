@@ -46,3 +46,11 @@ pub fn maybe_get_field(map: &BTreeMap<bencode::util::ByteString, Bencode>,
     map.get(&bencode::util::ByteString::from_str(key))
        .map(|b| b.clone())
 }
+
+
+pub fn bytes_try_show_ascii(buf: &[u8]) {
+    for &b in buf.iter() {
+        print!("{}", b as char);
+    }
+    println!("");
+}

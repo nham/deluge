@@ -104,8 +104,8 @@ pub enum TrackerError {
     HyperError(hyper::Error),
 }
 
-// sends
-pub fn get_tracker(metainfo: &MetaInfo) -> Result<(), TrackerError> {
+// sends GET to tracker, obtaining a list of peers
+pub fn get_tracker(metainfo: &MetaInfo) -> Result<Vec<Peer>, TrackerError> {
     let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
                                        &metainfo.info_hash_bytes()[..]);
     println!("in get_tracker, info_hash = {:?}", info_hash);
@@ -146,7 +146,7 @@ pub fn get_tracker(metainfo: &MetaInfo) -> Result<(), TrackerError> {
 
     println!("TrackerResponse = {:?}", resp);
 
-    Ok(())
+    Ok(resp.peers)
 }
 
 
@@ -168,15 +168,17 @@ struct TrackerResponse {
     pub incomplete: Option<i64>,
 
     // This is perhaps the "dictionary model" in the unofficial spec?
-    pub peers: Option<Vec<ResponsePeerInfo>>,
+    pub peers: Vec<Peer>,
 
 }
 
 impl TrackerResponse {
     fn from_bytes(bytes: &[u8]) -> Result<TrackerResponse, String> {
+        println!("TrackerResponse::from_bytes, bytes = {:?}", bytes);
+        util::bytes_try_show_ascii(bytes);
         let bencode = match bencode::from_buffer(&bytes) {
             Ok(b) => b,
-            Err(e) => return Err(format!("Error creating Bencoded value from response string: {:?}", e)),
+            Err(e) => return Err(format!("Error creating Bencoded value from bytes: {:?}", e)),
         };
 
         <TrackerResponse>::from_bencode(&bencode)
@@ -196,14 +198,14 @@ impl TrackerResponse {
 }
 
 #[derive(Debug)]
-struct ResponsePeerInfo {
+pub struct Peer {
     peer_id: Option<String>,
     addr: net::SocketAddr,
 }
 
-impl ResponsePeerInfo {
-    fn from_socketaddr(addr: net::SocketAddr) -> ResponsePeerInfo {
-        ResponsePeerInfo {
+impl Peer {
+    fn from_socketaddr(addr: net::SocketAddr) -> Peer {
+        Peer {
             peer_id: None,
             addr: addr,
         }
@@ -211,9 +213,9 @@ impl ResponsePeerInfo {
 }
 
 /*
-impl FromBencode for ResponsePeerInfo {
+impl FromBencode for Peer {
     type Err = String;
-    fn from_bencode(b: &Bencode) -> Result<ResponsePeerInfo, Self::Err> {
+    fn from_bencode(b: &Bencode) -> Result<Peer, Self::Err> {
         match *b {
             Bencode::Dict(ref map) => {
                 let peer_id = util::get_field(map, "peer id");
@@ -225,21 +227,21 @@ impl FromBencode for ResponsePeerInfo {
                 //let ip = net::IpAddr::V4(net::Ipv4Addr::new(a, b, c, d));
                 unimplemented!()
                 /*
-                Ok(ResponsePeerInfo {
+                Ok(Peer {
                     peer_id: util::bencode_string_unwrap_string(peer_id),
                     addr: net::SocketAddr::new(ip, port),
                 })
                 */
             },
-            _ => Err(String::from("Cannot convert to ResponsePeerInfo, not a dictionary")),
+            _ => Err(String::from("Cannot convert to Peer, not a dictionary")),
         }
     }
 }
 
-fn bencode_to_vec_rpi_dict(peers: Option<Bencode>) -> Option<Vec<ResponsePeerInfo>> {
-    fn vec_bencode_to_rpi(v: Vec<Bencode>) -> Vec<ResponsePeerInfo> {
+fn bencode_to_vec_rpi_dict(peers: Option<Bencode>) -> Option<Vec<Peer>> {
+    fn vec_bencode_to_rpi(v: Vec<Bencode>) -> Vec<Peer> {
         v.into_iter()
-         .map(|b| match <ResponsePeerInfo>::from_bencode(&b) {
+         .map(|b| match <Peer>::from_bencode(&b) {
                   Ok(rpi) => rpi,
                   Err(e) => return panic!("Error converting to RPI: {:?}", e),
               }).collect()
@@ -276,10 +278,10 @@ impl FromBencode for TrackerResponse {
 
                 println!("------------------------------");
 
-                let vec_rpi = peers.map(|b| {
+                let vec_peers = peers.map(|b| {
                     let v = util::bencode_string_unwrap_bytes(b);
                     let addrs = TrackerResponse::parse_peers_bytes(&v);
-                    addrs.into_iter().map(|addr| ResponsePeerInfo::from_socketaddr(addr)).collect::<Vec<_>>()
+                    addrs.into_iter().map(|addr| Peer::from_socketaddr(addr)).collect::<Vec<_>>()
                 });
 
                 let resp = TrackerResponse {
@@ -288,7 +290,7 @@ impl FromBencode for TrackerResponse {
                     tracker_id: tracker_id.map(|b| util::bencode_string_unwrap_string(b)),
                     complete: complete.map(|b| util::bencode_unwrap_number(b)),
                     incomplete: incomplete.map(|b| util::bencode_unwrap_number(b)),
-                    peers: vec_rpi,
+                    peers: vec_peers.unwrap_or(Vec::new()),
                 };
                 Ok(resp)
             },

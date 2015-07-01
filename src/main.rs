@@ -63,7 +63,7 @@ fn main() {
     };
     println!("metainfo = {:?}", metainfo);
     match tracker::get_tracker(&metainfo) {
-        Ok(()) => {},
+        Ok(peers) => println!("peers.len() = {}", peers.len()),
         Err(e) => return panic!("Error calling get_tracker: {:?}", e),
     }
 }
