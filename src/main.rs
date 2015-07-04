@@ -16,6 +16,7 @@ mod util;
 //static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
 //static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
 static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
+//static DEFAULT_TORRENT_FILE: &'static str = "ubuntu-15.04-desktop-amd64.iso.torrent";
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
@@ -49,21 +50,42 @@ fn main() {
 
     println!("torrent_file = {:?}", torrent_file);
 
-    let torrent_file_name = match torrent_file {
+    let torrent_filename = match torrent_file {
         Some(ref file) => &file[..],
         None => DEFAULT_TORRENT_FILE,
     };
 
-    let metainfo = metainfo::parse_torrent_file(torrent_file_name);
-
-    // try to unwrap metainfo
-    let metainfo = match metainfo {
-        Ok(metainfo) => metainfo,
-        Err(e) => return panic!("Error unwrapping metainfo: {:?}", e),
-    };
-    println!("metainfo = {:?}", metainfo);
-    match tracker::get_tracker(&metainfo) {
-        Ok(peers) => println!("peers.len() = {}", peers.len()),
-        Err(e) => return panic!("Error calling get_tracker: {:?}", e),
+    match run(torrent_filename) {
+        Err(e) => panic!("Error running: {:?}", e),
+        _ => {},
     }
+}
+
+#[derive(Debug)]
+enum RunError {
+    FileError(metainfo::ParseError),
+    TrackerError(tracker::TrackerError),
+}
+
+impl From<metainfo::ParseError> for RunError {
+    fn from(e: metainfo::ParseError) -> RunError {
+        RunError::FileError(e)
+    }
+}
+
+impl From<tracker::TrackerError> for RunError {
+    fn from(e: tracker::TrackerError) -> RunError {
+        RunError::TrackerError(e)
+    }
+}
+
+fn run(filename: &str) -> Result<(), RunError> {
+    let metainfo = try!(metainfo::parse_torrent_file(filename));
+    println!("metainfo = {:?}", metainfo);
+
+    // send GET to tracker
+    let peers = try!(tracker::get_tracker(&metainfo));
+    println!("peers.len() = {}", peers.len());
+
+    Ok(())
 }
