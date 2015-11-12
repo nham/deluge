@@ -69,7 +69,7 @@ impl TrackerRequest {
             uploaded: ul,
             downloaded: dl,
             left: left,
-            compact: None,
+            compact: Some(true),
             no_peer_id: None,
             event: event,
         }
@@ -92,6 +92,9 @@ impl TrackerRequest {
             v.push(format!("{}={}", "event", self.event.as_ref().unwrap()
                                                        .as_str()));
         }
+        if self.compact.is_some() {
+            v.push(format!("{}={}", "compact", if self.compact.unwrap() {1} else {0}));
+        }
         v.connect("&")
     }
 }
@@ -105,11 +108,11 @@ pub enum TrackerError {
 }
 
 // sends GET to tracker, obtaining a list of peers
-pub fn get_tracker(metainfo: &MetaInfo) -> Result<Vec<Peer>, TrackerError> {
+pub fn get_tracker(metainfo: &MetaInfo, peer_id: String) -> Result<Vec<Peer>, TrackerError> {
     let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
                                        &metainfo.info_hash_bytes()[..]);
     println!("in get_tracker, info_hash = {:?}", info_hash);
-    let req = TrackerRequest::new(String::from("1234567890abcdefghij"), 4567, 0, 0,
+    let req = TrackerRequest::new(peer_id, 4567, 0, 0,
                                   metainfo.num_file_bytes() as u64, info_hash,
                                   Some(EventType::Started));
 

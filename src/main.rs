@@ -4,9 +4,11 @@ extern crate bencode;
 extern crate getopts;
 extern crate hyper;
 extern crate openssl;
+extern crate rand;
 extern crate url;
 
 use getopts::Options;
+use rand::Rng;
 use std::env;
 
 mod metainfo;
@@ -15,8 +17,10 @@ mod util;
 
 //static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
 //static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
-static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
-//static DEFAULT_TORRENT_FILE: &'static str = "ubuntu-15.04-desktop-amd64.iso.torrent";
+//static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
+static DEFAULT_TORRENT_FILE: &'static str = "ubuntu-15.04-desktop-amd64.iso.torrent";
+
+const PEER_ID_PREFIX: &'static str = "-NH0001-";
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
@@ -84,8 +88,16 @@ fn run(filename: &str) -> Result<(), RunError> {
     println!("metainfo = {:?}", metainfo);
 
     // send GET to tracker
-    let peers = try!(tracker::get_tracker(&metainfo));
+    let peers = try!(tracker::get_tracker(&metainfo, gen_peer_id()));
     println!("peers.len() = {}", peers.len());
 
     Ok(())
+}
+
+
+fn gen_peer_id() -> String {
+    let mut rng = rand::thread_rng();
+    let prefix_len = PEER_ID_PREFIX.len();
+    let s: String = rng.gen_ascii_chars().take(20 - prefix_len).collect();
+    format!("{}{}", PEER_ID_PREFIX, s)
 }
