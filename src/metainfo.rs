@@ -10,11 +10,13 @@ use std::io::{self, Read};
 
 static TORRENT_FILE_DIR: &'static str = "data";
 
+pub type Sha1Hash = Vec<u8>;
+
 pub struct MetaInfo {
     pub info: SingleFileInfo,
 
     // Hash of the info dict
-    pub info_hash: Vec<u8>,
+    pub info_hash: Sha1Hash,
 
     // announce URL of tracker
     pub announce: String,
@@ -50,7 +52,7 @@ pub trait InfoDictionary {
 // "a dictionary that describes the file(s) of the torrent"
 pub struct SingleFileInfo {
     pub piece_length: u32,
-    pub pieces: Vec<u8>,
+    pub pieces: Vec<Sha1Hash>,
 
     // name of file name
     pub name: String,
@@ -138,10 +140,24 @@ impl FromBencode for SingleFileInfo {
                           length = {:?}",
                           piece_length, pieces, name, length);
 
+                let mut pieces_vec = Vec::new();
+                let mut buf = Vec::new();
+                let mut i = 0;
+                for b in util::bencode_string_unwrap_bytes(pieces).into_iter() {
+                    buf.push(b);
+                    if i == 19 {
+                        pieces_vec.push(buf);
+                        buf = Vec::new();
+                        i = 0;
+                    } else {
+                        i += 1;
+                    }
+                }
+
                 // TODO: md5sum
                 Ok(SingleFileInfo {
                     piece_length: util::bencode_unwrap_number(piece_length) as u32,
-                    pieces: util::bencode_string_unwrap_bytes(pieces),
+                    pieces: pieces_vec,
                     name: util::bencode_string_unwrap_string(name),
                     length: util::bencode_unwrap_number(length) as u32,
                     md5sum: None,
