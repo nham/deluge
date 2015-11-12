@@ -4,7 +4,6 @@ use util;
 use bencode::{self, FromBencode, Bencode};
 use hyper::{self, Client};
 use hyper::header::Connection;
-use openssl::crypto::hash as openssl_hash;
 use std::io::{self, Read};
 use std::net;
 use url::percent_encoding::{percent_encode, FORM_URLENCODED_ENCODE_SET};
@@ -109,11 +108,8 @@ pub enum TrackerError {
 
 // sends GET to tracker, obtaining a list of peers
 pub fn get_tracker(metainfo: &MetaInfo, peer_id: String) -> Result<Vec<Peer>, TrackerError> {
-    let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
-                                       &metainfo.info_hash_bytes()[..]);
-    println!("in get_tracker, info_hash = {:?}", info_hash);
     let req = TrackerRequest::new(peer_id, 4567, 0, 0,
-                                  metainfo.num_file_bytes() as u64, info_hash,
+                                  metainfo.num_file_bytes() as u64, metainfo.info_hash.clone(),
                                   Some(EventType::Started));
 
     let query_string = req.get_query_string();

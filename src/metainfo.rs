@@ -1,6 +1,7 @@
 use util;
 
 use bencode::{self, FromBencode, Bencode};
+use openssl::crypto::hash as openssl_hash;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::fs::File;
@@ -10,7 +11,10 @@ use std::io::{self, Read};
 static TORRENT_FILE_DIR: &'static str = "data";
 
 pub struct MetaInfo {
-    pub info: Box<InfoDictionary>,
+    pub info: SingleFileInfo,
+
+    // Hash of the info dict
+    pub info_hash: Vec<u8>,
 
     // announce URL of tracker
     pub announce: String,
@@ -27,11 +31,7 @@ pub struct MetaInfo {
 
 impl MetaInfo {
     pub fn num_file_bytes(&self) -> u32 {
-        self.info.num_file_bytes()
-    }
-
-    pub fn info_hash_bytes(&self) -> Vec<u8> {
-        self.info.info_hash_bytes()
+        self.info.length
     }
 }
 
@@ -70,56 +70,7 @@ fn bencode_dict_insert(dict: &mut Bencode,
     }
 }
 
-impl InfoDictionary for SingleFileInfo {
-    fn info_hash_bytes(&self) -> Vec<u8> {
-        let mut dict = Bencode::Dict(BTreeMap::new());
-        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("piece length"),
-                                       Bencode::Number(self.piece_length as i64));
-        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("pieces"),
-                                       Bencode::ByteString(self.pieces.clone()));
-        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("name"),
-                                       Bencode::ByteString(self.name.clone().into_bytes() ));
-        bencode_dict_insert(&mut dict, bencode::util::ByteString::from_str("length"),
-                                       Bencode::Number(self.length as i64));
-        if self.md5sum.is_some() {
-            return panic!("md5sum isn't implemented as part of info_hash_bytes yet");
-        }
-        match dict.to_bytes() {
-            Ok(bytes) => bytes,
-            Err(e) => panic!("Error converting dict to bytes: {:?}", e),
-        }
-    }
-
-    fn num_file_bytes(&self) -> u32 { self.length }
-}
-
-/*
-pub struct MultiFileInfo {
-    pub piece_length: u32,
-    pub pieces: Vec<u8>,
-
-    // name of directory that contains the files
-    pub name: String,
-
-    files: Vec<MultipleFileIndividualFileInfo>,
-}
-
-pub enum FileInfo {
-    Single(SingleFileInfo),
-    Multiple(MultiFileInfo),
-}
-
-// this name is less than ideal...
-struct MultipleFileIndividualFileInfo {
-    length: u32,
-    md5sum: Option<[char; 32]>,
-    path: Vec<String>, // maybe should be a std::path::Path
-}
-*/
-
-
 pub type DecodeError = String;
-
 
 impl FromBencode for MetaInfo {
     type Err = DecodeError;
@@ -137,30 +88,14 @@ impl FromBencode for MetaInfo {
                           encoding = {:?}",
                           announce, creation_date, created_by, encoding);
 
-                let info_dict_map = match util::get_field(m, "info") {
-                    Bencode::Dict(map) => map,
-                    _ => return Err(String::from("`info` field is not a dictionary.")),
+                let info_dict = util::get_field(m, "info");
+                let info = try!(FromBencode::from_bencode(&info_dict));
+                let info_dict_bytes = match info_dict.to_bytes() {
+                    Ok(b) => b,
+                    Err(e) => return Err(format!("Error: {:?}", e)),
                 };
-
-                let piece_length = util::get_field(&info_dict_map, "piece length");
-                let pieces = util::get_field(&info_dict_map, "pieces");
-                let name = util::get_field(&info_dict_map, "name");
-                let length = util::get_field(&info_dict_map, "length");
-
-                println!("piece_length = {:?},\n\
-                          pieces = {:?},\n\
-                          name = {:?},\n\
-                          length = {:?}",
-                          piece_length, pieces, name, length);
-
-                // TODO: md5sum
-                let info = SingleFileInfo {
-                    piece_length: util::bencode_unwrap_number(piece_length) as u32,
-                    pieces: util::bencode_string_unwrap_bytes(pieces),
-                    name: util::bencode_string_unwrap_string(name),
-                    length: util::bencode_unwrap_number(length) as u32,
-                    md5sum: None,
-                };
+                let info_hash = openssl_hash::hash(openssl_hash::Type::SHA1,
+                                               &info_dict_bytes[..]);
 
                 fn unwrap_bencode_bytestring(b: Bencode, field_name: &str) -> String {
                     let bytes = util::bencode_string_unwrap_bytes(b);
@@ -172,13 +107,44 @@ impl FromBencode for MetaInfo {
                 }
 
                 Ok(MetaInfo {
-                    info: Box::new(info) as Box<InfoDictionary>,
+                    info: info,
+                    info_hash: info_hash,
                     announce: unwrap_bencode_bytestring(announce, "announce"),
                     creation_date: creation_date.map(|cd| util::bencode_unwrap_number(cd)),
                     created_by: created_by.map(|cb| unwrap_bencode_bytestring(cb,
                                                                               "created_by")),
                     encoding: encoding.map(|enc| unwrap_bencode_bytestring(enc,
                                                                            "encoding")),
+                })
+            },
+            _ => Err(format!("Bencoded string is not a dictionary.")),
+        }
+    }
+}
+
+impl FromBencode for SingleFileInfo {
+    type Err = DecodeError;
+    fn from_bencode(b: &Bencode) -> Result<SingleFileInfo, Self::Err> {
+        match *b {
+            Bencode::Dict(ref m) => {
+                let piece_length = util::get_field(m, "piece length");
+                let pieces = util::get_field(m, "pieces");
+                let name = util::get_field(m, "name");
+                let length = util::get_field(m, "length");
+
+                println!("piece_length = {:?},\n\
+                          pieces = {:?},\n\
+                          name = {:?},\n\
+                          length = {:?}",
+                          piece_length, pieces, name, length);
+
+                // TODO: md5sum
+                Ok(SingleFileInfo {
+                    piece_length: util::bencode_unwrap_number(piece_length) as u32,
+                    pieces: util::bencode_string_unwrap_bytes(pieces),
+                    name: util::bencode_string_unwrap_string(name),
+                    length: util::bencode_unwrap_number(length) as u32,
+                    md5sum: None,
                 })
             },
             _ => Err(format!("Bencoded string is not a dictionary.")),
