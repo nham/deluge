@@ -11,6 +11,7 @@ use getopts::Options;
 use rand::Rng;
 use std::env;
 
+mod download;
 mod metainfo;
 mod tracker;
 mod util;
@@ -18,8 +19,8 @@ mod util;
 //static DEFAULT_TORRENT_FILE: &'static str = "Fedora-Live-LXDE-x86_64-22.torrent";
 //static DEFAULT_TORRENT_FILE: &'static str = "archlinux-2015.06.01-dual.iso.torrent";
 //static DEFAULT_TORRENT_FILE: &'static str = "flagfromserver.torrent";
-//static DEFAULT_TORRENT_FILE: &'static str = "ubuntu-15.04-desktop-amd64.iso.torrent";
-static DEFAULT_TORRENT_FILE: &'static str = "debian-8.2.0-amd64-netinst.iso.torrent";
+static DEFAULT_TORRENT_FILE: &'static str = "ubuntu-15.04-desktop-amd64.iso.torrent";
+//static DEFAULT_TORRENT_FILE: &'static str = "debian-8.2.0-amd64-netinst.iso.torrent";
 
 const PEER_ID_PREFIX: &'static str = "-NH0001-";
 
@@ -89,9 +90,11 @@ fn run(filename: &str) -> Result<(), RunError> {
     println!("metainfo = {:?}", metainfo);
 
     // send GET to tracker
-    let peers = try!(tracker::get_tracker(&metainfo, gen_peer_id()));
+    let peer_id = gen_peer_id();
+    let peers = try!(tracker::get_tracker(&metainfo, peer_id.clone()));
     println!("peers.len() = {}", peers.len());
 
+    download::download(&metainfo, &peers[..], peer_id.clone());
     Ok(())
 }
 

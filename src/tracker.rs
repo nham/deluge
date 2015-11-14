@@ -196,10 +196,10 @@ impl TrackerResponse {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Peer {
     peer_id: Option<String>,
-    addr: net::SocketAddr,
+    pub addr: net::SocketAddr,
 }
 
 impl Peer {
