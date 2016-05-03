@@ -1,4 +1,4 @@
-#![feature(ip_addr)]
+#![feature(ip_addr, read_exact)]
 
 extern crate bencode;
 extern crate getopts;
